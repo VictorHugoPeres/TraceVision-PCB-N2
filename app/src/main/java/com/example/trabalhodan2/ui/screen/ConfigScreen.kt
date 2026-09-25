@@ -14,11 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -46,7 +44,6 @@ import com.example.trabalhodan2.ui.theme.TechSuccess
 import com.example.trabalhodan2.ui.theme.TechSurfaceVariant
 import com.example.trabalhodan2.viewmodel.InferenceViewModel
 import java.io.File
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,7 +101,6 @@ fun ConfigScreen(
                     }
                 },
                 actions = {
-                    // Backend status pill & settings button
                     Surface(
                         modifier = Modifier
                             .padding(end = 8.dp)
@@ -206,7 +202,6 @@ fun ConfigScreen(
                         Text("Selecionar Outro Modelo (.onnx)")
                     }
 
-                    // Rótulos do modelo
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             "Rótulos de defeitos suportados (7 classes):",
@@ -274,7 +269,13 @@ fun ConfigScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Limiar de Confiança (Confidence Threshold)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(
+                            "Limiar de Confiança",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(Modifier.width(8.dp))
                         StatusBadge(
                             text = "${(uiState.confidenceThreshold * 100).toInt()}%",
                             containerColor = TechPrimaryContainer,
@@ -306,7 +307,13 @@ fun ConfigScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Pré-visualização da Imagem", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(
+                            "Pré-visualização da Imagem",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(Modifier.width(8.dp))
                         if (uiState.selectedImageUri != null) {
                             StatusBadge(text = "Pronta para Inferência", containerColor = Color(0xFFDCFCE7), contentColor = TechSuccess)
                         }
@@ -390,7 +397,7 @@ fun ConfigScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Defina o endereço IP e porta da API REST para envio e persistência automática dos relatórios:",
+                        "Defina o endereço IP e porta da API REST para sincronização automática:",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -398,12 +405,22 @@ fun ConfigScreen(
                         value = serverUrlInput,
                         onValueChange = { serverUrlInput = it },
                         label = { Text("URL Base da API") },
-                        placeholder = { Text("http://10.0.2.2:8080/") },
+                        placeholder = { Text("http://10.10.10.113:8080/") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Botão de atalho rápido para o IP do seu PC Wi-Fi
+                    OutlinedButton(
+                        onClick = { serverUrlInput = "http://10.10.10.113:8080/" },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Usar IP Wi-Fi deste PC (10.10.10.113:8080)", fontSize = 11.sp)
+                    }
+
                     Text(
-                        "Dica:\n• Emulador Android Studio: http://10.0.2.2:8080/\n• Celular físico (Wi-Fi): http://192.168.x.x:8080/",
+                        "Dicas de Conexão:\n• Celular físico (Wi-Fi): http://10.10.10.113:8080/\n• Emulador Android Studio: http://10.0.2.2:8080/",
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

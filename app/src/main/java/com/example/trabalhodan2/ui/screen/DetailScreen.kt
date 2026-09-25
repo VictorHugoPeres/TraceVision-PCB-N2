@@ -54,7 +54,7 @@ fun DetailScreen(
                         )
                         if (selectedItem != null) {
                             Text(
-                                text = selectedItem.timestamp,
+                                text = formatDisplayTimestamp(selectedItem.timestamp),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

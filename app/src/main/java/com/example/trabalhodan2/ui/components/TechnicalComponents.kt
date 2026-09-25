@@ -62,7 +62,9 @@ fun StatusBadge(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = contentColor
+            color = contentColor,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }

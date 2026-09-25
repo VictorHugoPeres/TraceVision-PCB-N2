@@ -10,10 +10,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ListAlt
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,7 +31,6 @@ import com.example.trabalhodan2.ui.components.StatusBadge
 import com.example.trabalhodan2.ui.components.TechnicalCard
 import com.example.trabalhodan2.ui.theme.TechBorder
 import com.example.trabalhodan2.ui.theme.TechPrimary
-import com.example.trabalhodan2.ui.theme.TechPrimaryContainer
 import com.example.trabalhodan2.ui.theme.TechSuccess
 import com.example.trabalhodan2.ui.theme.TechSurfaceVariant
 import com.example.trabalhodan2.viewmodel.InferenceViewModel
@@ -118,7 +115,7 @@ fun ResultScreen(
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Top Statistics Grid (Fidelidade ao wireframe da Figura 3b)
+                // Top Statistics Grid (Figura 3b)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -190,7 +187,6 @@ fun ResultScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        // Resumo das classes detectadas
                         val classSummary = result.boundingBoxes
                             .groupingBy { it.classLabel }
                             .eachCount()
@@ -206,7 +202,7 @@ fun ResultScreen(
                     }
                 }
 
-                // Imagem Anotada com Bounding Boxes Canvas Overlay
+                // Imagem Anotada com Bounding Boxes Canvas Overlay perfeitamente alinhadas
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         "Imagem Anotada (Canvas Compose)",
@@ -218,7 +214,7 @@ fun ResultScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(300.dp)
+                            .height(340.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .border(1.dp, TechBorder, RoundedCornerShape(12.dp))
                             .background(Color.Black),
@@ -232,23 +228,28 @@ fun ResultScreen(
                             Image(
                                 bitmap = imageBitmap,
                                 contentDescription = "Inference Result PCB",
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
                             )
 
                             Canvas(modifier = Modifier.fillMaxSize()) {
                                 val canvasWidth = size.width
                                 val canvasHeight = size.height
 
-                                val scaleX = canvasWidth / imgWidth
-                                val scaleY = canvasHeight / imgHeight
+                                // Cálculo de escala uniforme para coincidir com ContentScale.Fit
+                                val scale = minOf(canvasWidth / imgWidth, canvasHeight / imgHeight)
+                                val renderedW = imgWidth * scale
+                                val renderedH = imgHeight * scale
+                                val offsetX = (canvasWidth - renderedW) / 2f
+                                val offsetY = (canvasHeight - renderedH) / 2f
 
                                 for (box in result.boundingBoxes) {
-                                    val left = box.xMin * scaleX
-                                    val top = box.yMin * scaleY
-                                    val width = box.widthPx * scaleX
-                                    val height = box.heightPx * scaleY
-                                    val cx = box.centroidX * scaleX
-                                    val cy = box.centroidY * scaleY
+                                    val left = offsetX + (box.xMin * scale)
+                                    val top = offsetY + (box.yMin * scale)
+                                    val width = box.widthPx * scale
+                                    val height = box.heightPx * scale
+                                    val cx = offsetX + (box.centroidX * scale)
+                                    val cy = offsetY + (box.centroidY * scale)
 
                                     val color = getColorForLabel(box.classLabel)
 
@@ -257,35 +258,51 @@ fun ResultScreen(
                                         color = color,
                                         topLeft = Offset(left, top),
                                         size = Size(width, height),
-                                        style = Stroke(width = 4f)
+                                        style = Stroke(width = 3.5f)
                                     )
 
-                                    // Desenha o Centróide (marca central +)
+                                    // Desenha o Centróide (marca central + e ponto)
+                                    val crossSize = 7f
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(cx - 8f, cy),
-                                        end = Offset(cx + 8f, cy),
-                                        strokeWidth = 3f
+                                        start = Offset(cx - crossSize, cy),
+                                        end = Offset(cx + crossSize, cy),
+                                        strokeWidth = 2.5f
                                     )
                                     drawLine(
                                         color = Color.White,
-                                        start = Offset(cx, cy - 8f),
-                                        end = Offset(cx, cy + 8f),
-                                        strokeWidth = 3f
+                                        start = Offset(cx, cy - crossSize),
+                                        end = Offset(cx, cy + crossSize),
+                                        strokeWidth = 2.5f
+                                    )
+                                    drawCircle(
+                                        color = Color.White,
+                                        radius = 2.5f,
+                                        center = Offset(cx, cy)
                                     )
 
-                                    // Desenha a tag com o rótulo e confiança
+                                    // Desenha o fundo da tag da etiqueta para legibilidade máxima
                                     val labelText = "#${box.boxId} ${box.classLabel} ${(box.confidence * 100).toInt()}%"
+                                    val textPaint = android.graphics.Paint().apply {
+                                        this.color = android.graphics.Color.WHITE
+                                        this.textSize = 24f
+                                        this.isFakeBoldText = true
+                                    }
+                                    val textWidth = textPaint.measureText(labelText)
+                                    val textHeight = 28f
+                                    val tagTop = maxOf(offsetY, top - textHeight - 4f)
+
+                                    drawRect(
+                                        color = color.copy(alpha = 0.85f),
+                                        topLeft = Offset(left, tagTop),
+                                        size = Size(textWidth + 12f, textHeight + 4f)
+                                    )
+
                                     drawContext.canvas.nativeCanvas.drawText(
                                         labelText,
-                                        left + 4f,
-                                        maxOf(28f, top - 8f),
-                                        android.graphics.Paint().apply {
-                                            this.color = android.graphics.Color.YELLOW
-                                            this.textSize = 34f
-                                            this.isFakeBoldText = true
-                                            this.setShadowLayer(4f, 0f, 0f, android.graphics.Color.BLACK)
-                                        }
+                                        left + 6f,
+                                        tagTop + textHeight - 4f,
+                                        textPaint
                                     )
                                 }
                             }
@@ -293,7 +310,7 @@ fun ResultScreen(
                     }
                 }
 
-                // Botão de navegação para a Tela 4: Detalhamento Geométrico
+                // Botão de navegação para a Tela 4
                 Button(
                     onClick = {
                         viewModel.selectHistoryItem(result)

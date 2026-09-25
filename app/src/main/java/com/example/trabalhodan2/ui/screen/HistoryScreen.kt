@@ -28,7 +28,21 @@ import com.example.trabalhodan2.ui.theme.TechPrimary
 import com.example.trabalhodan2.ui.theme.TechSuccess
 import com.example.trabalhodan2.ui.theme.TechSurfaceVariant
 import com.example.trabalhodan2.viewmodel.InferenceViewModel
-import java.util.Locale
+
+fun formatDisplayTimestamp(raw: String): String {
+    return try {
+        if (raw.contains("T")) {
+            val parts = raw.replace("Z", "").split("T")
+            val dateParts = parts[0].split("-")
+            val timeParts = parts[1].split(":")
+            "${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${timeParts[0]}:${timeParts[1]}"
+        } else {
+            raw
+        }
+    } catch (e: Exception) {
+        raw
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,7 +106,7 @@ fun HistoryScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Mini Dashboard com 3 métricas consolidadas (Fidelidade à Figura 4a)
+            // Mini Dashboard com 3 métricas consolidadas (Figura 4a)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -102,7 +116,7 @@ fun HistoryScreen(
                 SummaryCard(modifier = Modifier.weight(1.1f), value = "${avgExecutionTime} ms", label = "MÉDIA TEMPO")
             }
 
-            // Campo de busca / filtro (Fidelidade à Figura 4a)
+            // Campo de busca / filtro (Figura 4a)
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -206,7 +220,7 @@ fun HistoryCardItem(item: InferenceResult, onClick: () -> Unit) {
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Linha 1: ID da Sessão + Data/Hora
+            // Linha 1: ID da Sessão em cima e Data/Hora
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -216,14 +230,17 @@ fun HistoryCardItem(item: InferenceResult, onClick: () -> Unit) {
                     text = "Sessão #${item.sessionId}",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    text = item.timestamp,
+                    text = formatDisplayTimestamp(item.timestamp),
                     fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = TechPrimary
+                    fontWeight = FontWeight.Medium,
+                    color = TechPrimary,
+                    softWrap = false
                 )
             }
 
