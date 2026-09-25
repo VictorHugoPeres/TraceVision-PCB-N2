@@ -1,0 +1,16 @@
+*.iml
+.gradle
+/local.properties
+.idea/
+.kotlin/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Backend SQLite runtime files
+backend/*.db
+backend/*.db-journal
+backend/__pycache__/
