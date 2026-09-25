@@ -410,17 +410,31 @@ fun ConfigScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Botão de atalho rápido para o IP do seu PC Wi-Fi
-                    OutlinedButton(
-                        onClick = { serverUrlInput = "http://10.10.10.113:8080/" },
+                    // Botões de atalho rápido
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Usar IP Wi-Fi deste PC (10.10.10.113:8080)", fontSize = 11.sp)
+                        OutlinedButton(
+                            onClick = { serverUrlInput = "http://localhost:8080/" },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text("Cabo USB\n(localhost)", fontSize = 11.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                        OutlinedButton(
+                            onClick = { serverUrlInput = "http://10.10.10.113:8080/" },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text("Rede Wi-Fi\n(10.10.10.113)", fontSize = 11.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
                     }
 
                     Text(
-                        "Dicas de Conexão:\n• Celular físico (Wi-Fi): http://10.10.10.113:8080/\n• Emulador Android Studio: http://10.0.2.2:8080/",
+                        "Dicas de Conexão:\n• Cabo USB (com ADB): http://localhost:8080/\n• Celular no Wi-Fi: http://10.10.10.113:8080/\n• Emulador PC: http://10.0.2.2:8080/",
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
