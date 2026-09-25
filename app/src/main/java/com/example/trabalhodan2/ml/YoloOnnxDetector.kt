@@ -10,7 +10,6 @@ import ai.onnxruntime.OrtSession
 import java.io.File
 import java.io.InputStream
 import java.nio.FloatBuffer
-import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min
 
@@ -21,6 +20,8 @@ class YoloOnnxDetector(private val context: Context) {
 
     companion object {
         const val MODEL_INPUT_SIZE = 640
+
+        // As 7 classes oficiais de detecção de defeitos de PCB treinadas no best.onnx
         val DEFAULT_CLASSES = listOf(
             "broken_circuit",
             "burn_down",
@@ -37,7 +38,6 @@ class YoloOnnxDetector(private val context: Context) {
             close()
             ortEnvironment = OrtEnvironment.getEnvironment()
 
-            // Copy model file from assets to cache directory
             val modelFile = File(context.cacheDir, assetFileName)
             context.assets.open(assetFileName).use { input ->
                 modelFile.outputStream().use { output ->
@@ -45,7 +45,6 @@ class YoloOnnxDetector(private val context: Context) {
                 }
             }
 
-            // Copy companion .data file if it exists in assets
             val dataFileName = "$assetFileName.data"
             try {
                 context.assets.open(dataFileName).use { input ->
@@ -53,18 +52,17 @@ class YoloOnnxDetector(private val context: Context) {
                     dataFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
-                    android.util.Log.d("YoloOnnxDetector", "Companion data file copied successfully: $dataFileName")
+                    android.util.Log.d("YoloOnnxDetector", "Companion data file copiado com sucesso: $dataFileName")
                 }
             } catch (e: Exception) {
-                // .data file might not be present if model is self-contained
+                // Arquivo .data pode não ser necessário se o modelo for autocontido
             }
 
-            // Create session using file path on disk so ONNX Runtime can resolve external weights
             ortSession = ortEnvironment?.createSession(modelFile.absolutePath)
-            android.util.Log.d("YoloOnnxDetector", "Model loaded successfully from cache path: ${modelFile.absolutePath}")
+            android.util.Log.d("YoloOnnxDetector", "Modelo ONNX carregado com sucesso de: ${modelFile.absolutePath}")
             true
         } catch (e: Exception) {
-            android.util.Log.e("YoloOnnxDetector", "Failed to load model from assets: ${e.message}", e)
+            android.util.Log.e("YoloOnnxDetector", "Falha ao carregar modelo ONNX: ${e.message}", e)
             false
         }
     }
@@ -96,7 +94,6 @@ class YoloOnnxDetector(private val context: Context) {
         val boxes = if (ortSession != null && ortEnvironment != null) {
             runRealOnnxInference(bitmap, confidenceThreshold)
         } else {
-            // Fallback simulation for demonstration / when model asset is missing
             runSimulatedInference(origWidth, origHeight, confidenceThreshold)
         }
 
@@ -110,15 +107,13 @@ class YoloOnnxDetector(private val context: Context) {
 
         val inputName = ortSession?.inputNames?.iterator()?.next() ?: "images"
         val shape = longArrayOf(1, 3, MODEL_INPUT_SIZE.toLong(), MODEL_INPUT_SIZE.toLong())
-        
+
         val tensor = OnnxTensor.createTensor(ortEnvironment, floatBuffer, shape)
         val inputs: Map<String, OnnxTensor> = mapOf(inputName to tensor)
 
         val results = ortSession?.run(inputs)
-        android.util.Log.d("YoloOnnxDetector", "Inference executed successfully. Output count: ${results?.size()}")
         val outputTensor = results?.get(0)?.value as? Array<*>
-        android.util.Log.d("YoloOnnxDetector", "Output tensor type: ${outputTensor?.javaClass?.name}, length: ${outputTensor?.size}")
-        
+
         tensor.close()
         results?.close()
 
@@ -133,16 +128,16 @@ class YoloOnnxDetector(private val context: Context) {
         bitmap.getPixels(intValues, 0, MODEL_INPUT_SIZE, 0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE)
 
         val stride = MODEL_INPUT_SIZE * MODEL_INPUT_SIZE
+        // Ultralytics YOLOv8 treina e infere estritamente no padrão RGB normalizado (/255.0f)
         for (i in intValues.indices) {
             val pixel = intValues[i]
             val r = ((pixel shr 16) and 0xFF) / 255.0f
             val g = ((pixel shr 8) and 0xFF) / 255.0f
             val b = (pixel and 0xFF) / 255.0f
 
-            // BGR channel order expected by OpenCV / Python trained YOLOv8 models
-            buffer.put(i, b)
+            buffer.put(i, r)
             buffer.put(i + stride, g)
-            buffer.put(i + (stride * 2), r)
+            buffer.put(i + (stride * 2), b)
         }
         buffer.rewind()
         return buffer
@@ -150,84 +145,73 @@ class YoloOnnxDetector(private val context: Context) {
 
     private fun parseYoloOutput(output: Array<*>?, origW: Float, origH: Float, threshold: Float): List<BoundingBox> {
         val boxes = mutableListOf<BoundingBox>()
-        if (output == null) return generateDefaultBoxes(origW, origH, threshold)
+        if (output == null || output.isEmpty()) return emptyList()
 
         try {
-            android.util.Log.d("YoloOnnxDetector", "parseYoloOutput: output type: ${output.javaClass.name}, size: ${output.size}")
-            if (output.isNotEmpty() && output[0] != null) {
-                android.util.Log.d("YoloOnnxDetector", "output[0] type: ${output[0]?.javaClass?.name}")
-            }
-            val rawArray = output[0] as? Array<*>? ?: return generateDefaultBoxes(origW, origH, threshold)
+            val rawArray = output[0] as? Array<*>? ?: return emptyList()
             val numChannels = rawArray.size
             val numElements = (rawArray[0] as? FloatArray)?.size ?: 8400
-            android.util.Log.d("YoloOnnxDetector", "numChannels: $numChannels, numElements: $numElements")
-
-            val sb = StringBuilder("Anchor 0 values: ")
-            for (c in 0 until numChannels) {
-                sb.append("c$c=${(rawArray[c] as FloatArray)[0]}, ")
-            }
-            android.util.Log.d("YoloOnnxDetector", sb.toString())
-
-            var absoluteMax = 0f
-            for (i in 0 until numElements) {
-                for (c in 4 until numChannels) {
-                    val rawScore = (rawArray[c] as FloatArray)[i]
-                    val score = 1f / (1f + kotlin.math.exp(-rawScore))
-                    if (score > absoluteMax) absoluteMax = score
-                }
-            }
-            android.util.Log.d("YoloOnnxDetector", "Absolute max score across all 8400 elements: $absoluteMax")
 
             val candidateBoxes = mutableListOf<RawBox>()
+            val scaleX = origW / MODEL_INPUT_SIZE.toFloat()
+            val scaleY = origH / MODEL_INPUT_SIZE.toFloat()
+
             for (i in 0 until numElements) {
                 var maxClassScore = 0f
                 var bestClassIdx = 0
+
+                // Canais 4 a 10 contêm as probabilidades das 7 classes (já ativadas com Sigmoid pelo Ultralytics)
                 for (c in 4 until numChannels) {
-                    val rawScore = (rawArray[c] as FloatArray)[i]
-                    val score = 1f / (1f + kotlin.math.exp(-rawScore))
+                    val score = (rawArray[c] as FloatArray)[i]
                     if (score > maxClassScore) {
                         maxClassScore = score
                         bestClassIdx = c - 4
                     }
                 }
 
+                // Apenas candidatos cuja confiança real supere o limiar configurado
                 if (maxClassScore >= threshold) {
                     val cx = (rawArray[0] as FloatArray)[i]
                     val cy = (rawArray[1] as FloatArray)[i]
                     val w = (rawArray[2] as FloatArray)[i]
                     val h = (rawArray[3] as FloatArray)[i]
 
-                    val x1 = (cx - w / 2) * (origW / MODEL_INPUT_SIZE.toFloat())
-                    val y1 = (cy - h / 2) * (origH / MODEL_INPUT_SIZE.toFloat())
-                    val width = w * (origW / MODEL_INPUT_SIZE.toFloat())
-                    val height = h * (origH / MODEL_INPUT_SIZE.toFloat())
+                    val x1 = (cx - w / 2f) * scaleX
+                    val y1 = (cy - h / 2f) * scaleY
+                    val boxW = w * scaleX
+                    val boxH = h * scaleY
+
+                    // Garante que a caixa permaneça dentro dos limites físicos da imagem
+                    val clampedX = max(0f, min(x1, origW - 1f))
+                    val clampedY = max(0f, min(y1, origH - 1f))
+                    val clampedW = max(1f, min(boxW, origW - clampedX))
+                    val clampedH = max(1f, min(boxH, origH - clampedY))
 
                     val label = DEFAULT_CLASSES.getOrElse(bestClassIdx % DEFAULT_CLASSES.size) { "defeito" }
-                    candidateBoxes.add(RawBox(x1, y1, width, height, maxClassScore, label))
+                    candidateBoxes.add(RawBox(clampedX, clampedY, clampedW, clampedH, maxClassScore, label))
                 }
             }
 
-            android.util.Log.d("YoloOnnxDetector", "Candidates before NMS: ${candidateBoxes.size}")
-            val nmsBoxes = applyNMS(candidateBoxes, 0.45f).sortedByDescending { it.conf }.take(20)
-            android.util.Log.d("YoloOnnxDetector", "Candidates after NMS & limit: ${nmsBoxes.size}")
+            android.util.Log.d("YoloOnnxDetector", "Candidatos detectados antes do NMS: ${candidateBoxes.size}")
+
+            // Aplica Supressão de Não-Máximos (NMS) para remover caixas redundantes
+            val nmsBoxes = applyNMS(candidateBoxes, 0.45f).take(30)
+            android.util.Log.d("YoloOnnxDetector", "Caixas finais após NMS: ${nmsBoxes.size}")
+
             for ((index, rb) in nmsBoxes.withIndex()) {
-                val xMin = max(0f, rb.x)
-                val yMin = max(0f, rb.y)
-                val wPx = rb.w
-                val hPx = rb.h
-                val cx = xMin + (wPx / 2f)
-                val cy = yMin + (hPx / 2f)
-                val aPx = wPx * hPx
+                val cx = rb.x + (rb.w / 2f)
+                val cy = rb.y + (rb.h / 2f)
+                val aPx = rb.w * rb.h
 
                 boxes.add(
                     BoundingBox(
                         boxId = index + 1,
                         classLabel = rb.label,
                         confidence = rb.conf,
-                        xMin = xMin,
-                        yMin = yMin,
-                        widthPx = wPx,
-                        heightPx = hPx,
+                        xMin = rb.x,
+                        yMin = rb.y,
+                        widthPx = rb.w,
+                        heightPx = rb.h,
                         centroidX = cx,
                         centroidY = cy,
                         areaPx = aPx
@@ -235,8 +219,7 @@ class YoloOnnxDetector(private val context: Context) {
                 )
             }
         } catch (e: Exception) {
-            android.util.Log.e("YoloOnnxDetector", "Error parsing YOLO output tensor: ${e.message}", e)
-            e.printStackTrace()
+            android.util.Log.e("YoloOnnxDetector", "Erro ao processar tensor YOLO: ${e.message}", e)
             return emptyList()
         }
 
@@ -282,11 +265,9 @@ class YoloOnnxDetector(private val context: Context) {
 
     private fun runSimulatedInference(origW: Int, origH: Int, threshold: Float): List<BoundingBox> {
         val simulatedList = listOf(
-            Triple("componente_queimado", 0.92f, floatArrayOf(0.2f, 0.3f, 0.15f, 0.15f)),
-            Triple("trilha_rompida", 0.88f, floatArrayOf(0.5f, 0.6f, 0.25f, 0.1f)),
-            Triple("componente_faltando", 0.85f, floatArrayOf(0.75f, 0.2f, 0.12f, 0.12f)),
-            Triple("peca_desalinhada", 0.79f, floatArrayOf(0.35f, 0.75f, 0.18f, 0.18f)),
-            Triple("arranhao", 0.74f, floatArrayOf(0.1f, 0.8f, 0.3f, 0.08f))
+            Triple("broken_circuit", 0.93f, floatArrayOf(0.15f, 0.22f, 0.18f, 0.08f)),
+            Triple("burn_down", 0.89f, floatArrayOf(0.45f, 0.40f, 0.20f, 0.16f)),
+            Triple("missing_parts", 0.85f, floatArrayOf(0.70f, 0.30f, 0.15f, 0.15f))
         )
 
         val boxes = mutableListOf<BoundingBox>()
@@ -318,10 +299,6 @@ class YoloOnnxDetector(private val context: Context) {
             }
         }
         return boxes
-    }
-
-    private fun generateDefaultBoxes(origW: Float, origH: Float, threshold: Float): List<BoundingBox> {
-        return runSimulatedInference(origW.toInt(), origH.toInt(), threshold)
     }
 
     fun close() {

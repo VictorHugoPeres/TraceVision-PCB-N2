@@ -88,9 +88,9 @@ fun ConfigScreen(
                 title = {
                     Column {
                         Text(
-                            "TraceVision",
+                            "PCBScan",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp,
+                            fontSize = 20.sp,
                             letterSpacing = (-0.5).sp
                         )
                         Text(
